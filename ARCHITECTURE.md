@@ -150,3 +150,10 @@ Four untrusted inputs are handled defensively (see [SECURITY.md](SECURITY.md)):
 over a pseudo-terminal (`expectrl`), plus ratatui `TestBackend` snapshot tests (`insta`). The e2e
 tests stub the editor via `$EDITOR` and run in temp directories, so they need neither the
 external renderers nor a live herdr.
+
+`link_open` is the macOS/Linux terminal-file-link adapter. It resolves the clicked
+path from the source pane context, reuses the most recently focused viewer in the
+same session/tab through a private loopback channel, or opens a split without
+changing focus. The controller retains responsibility for reveal, root switching,
+annotation confirmation, and source-line navigation. Endpoint records are ephemeral
+and stay under the plugin state directory; idle ticks poll an in-memory channel.

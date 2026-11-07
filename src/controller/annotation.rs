@@ -200,7 +200,7 @@ impl Controller {
             verb: action.verb(),
             proceed_key: match action {
                 DiscardAction::Quit => "q",
-                DiscardAction::SwitchRoot(_) => "⏎",
+                DiscardAction::SwitchRoot(_) | DiscardAction::OpenLink(..) => "⏎",
             },
         })
     }

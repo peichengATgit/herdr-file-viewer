@@ -68,6 +68,7 @@ and the spec chain):
   TUI around it (NOT a herdr pane — see the herdr integration section)
 
 State is **in-memory and ephemeral only** except for the safe-to-delete advisory files:
+private `link-endpoints/` records support local explicit file-link requests and are removed on normal exit;
 `update-check.json` caches remote notices and `spotlight-dismissal.json` remembers the last
 explicitly dismissed spotlight. Neither changes the viewed root or git repo.
 (`ARCHITECTURE.md` is the committed module map; keep it current.)
@@ -117,7 +118,8 @@ These shape every decision; violating one is a design error, not a style nit:
   (Windows is preview, with per-item launcher entries), and **platform-gated `[[build]]` steps**
   (`["/bin/sh","scripts/fetch-or-build.sh"]` on unix, `powershell … scripts/fetch-or-build.ps1` on
   Windows) that download the verified prebuilt binary and fall back to `cargo build --release`.
-  **No `[[events]]`** (AC-N4).
+  **No `[[events]]`** (AC-N4). Explicit Ctrl-click `file:` link handlers are allowed;
+  printing paths and hover must never invoke them (constitution principle 7).
 - **Runtime host ops** via the herdr CLI (`$HERDR_BIN_PATH`, the `HerdrCli::run` / `run_json` seam in
   `src/herdr.rs`): read-only layout/query commands only — e.g. `pane zoom` (the `Z` full-screen), the
   worktree picker's queries, and the tab/split launcher scripts. The **editor hand-off is NOT a herdr

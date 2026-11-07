@@ -1277,3 +1277,57 @@ fn discard_confirm_absorbs_decoded_intents() {
     assert!(!fx.quit, "proceeding is the switch, not a quit");
     assert_eq!(ctrl.root(), second.path());
 }
+
+#[test]
+fn file_link_root_switch_preserves_notes_until_confirmed_and_then_opens_target() {
+    let first = TempDir::new();
+    std::fs::write(first.path().join("a.rs"), "source\n").unwrap();
+    let second = TempDir::new();
+    let target_file = second.path().join("b.rs");
+    std::fs::write(&target_file, "source\n").unwrap();
+    let (mut ctrl, _) = controller(first.path(), false);
+    add_file_annotation(&mut ctrl, "kept");
+    let target = herdr_file_viewer::open_target::OpenTarget {
+        path: target_file.to_string_lossy().into_owned(),
+        line: Some(1),
+        end_line: None,
+    };
+    ctrl.open_link_target(&target);
+    assert!(ctrl.discard_confirm_open());
+    assert_eq!(ctrl.root(), first.path());
+    assert_eq!(ctrl.annotations().len(), 1);
+    ctrl.handle_discard_confirm_key(key(KeyCode::Esc));
+    assert_eq!(ctrl.root(), first.path());
+    assert_eq!(ctrl.annotations().len(), 1);
+    ctrl.open_link_target(&target);
+    ctrl.handle_discard_confirm_key(key(KeyCode::Enter));
+    assert!(!ctrl.discard_confirm_open());
+    assert_eq!(ctrl.root(), second.path());
+    assert!(ctrl.annotations().is_empty());
+    assert_eq!(
+        ctrl.tree().selected().map(|node| node.path),
+        Some(target_file)
+    );
+    assert_eq!(ctrl.pending_goto_line(), Some(1));
+}
+
+#[test]
+fn missing_file_link_keeps_current_root_and_annotations() {
+    let first = TempDir::new();
+    std::fs::write(first.path().join("a.rs"), "source\n").unwrap();
+    let second = TempDir::new();
+    let (mut ctrl, _) = controller(first.path(), false);
+    add_file_annotation(&mut ctrl, "kept");
+    ctrl.open_link_target(&herdr_file_viewer::open_target::OpenTarget {
+        path: second
+            .path()
+            .join("missing.rs")
+            .to_string_lossy()
+            .into_owned(),
+        line: None,
+        end_line: None,
+    });
+    assert_eq!(ctrl.root(), first.path());
+    assert_eq!(ctrl.annotations().len(), 1);
+    assert!(!ctrl.discard_confirm_open());
+}

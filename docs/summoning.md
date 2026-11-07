@@ -6,7 +6,10 @@ start](../README.md#quick-start). After opening the viewer, see the [usage guide
 [keys reference](keys.md).
 
 The viewer opens **only** in response to an explicit action. There are no event hooks and no
-automatic invocation. The manifest declares `[[panes]]` entries (the viewer and the root-picker
+automatic invocation. A deliberate Ctrl-click on a file path also counts as an explicit
+action: the `file:` link handler opens or navigates Files without changing terminal
+focus. Printing a path or hovering over it never opens the viewer. See
+[file links](usage.md#ctrl-click-terminal-file-links). The manifest declares `[[panes]]` entries (the viewer and the root-picker
 popup) and `[[actions]]` that open them; the core pair is:
 
 ```toml

@@ -476,3 +476,24 @@ open/expand, use the wheel to scroll, drag a scrollbar or the divider, and drag 
 select-and-copy without any mode. Character selection follows terminal cell width, so full-width CJK
 text selects at the same boundary you see on screen. The full gesture table is in the [keys reference](keys.md#mouse).
 `Shift`+drag is deliberately left to your terminal's own native selection.
+
+## Ctrl-click terminal file links
+
+With a Herdr build that recognizes file paths, Ctrl-click a path in terminal output
+(macOS or Linux) to open it in Files. The plugin registers a `file:` link handler;
+web links retain their browser behavior. Cmd-click is owned by the outer terminal.
+Relative paths use the clicked terminal's working directory. Absolute paths, `~/…`,
+`$PWD/…`, `file:///…`, quoted paths containing spaces, and `:line` or `:line:column`
+suffixes are accepted. Source locations currently land on the line; columns are not selected.
+
+The most recently focused viewer in the same session and tab receives the request.
+If none is available, a Files split opens beside the clicked pane. Keyboard focus
+stays in the source terminal. A file outside the current root switches Files to
+its repository root, or its parent directory outside a repository. The existing
+annotation discard confirmation still applies before switching roots.
+
+The local request channel uses an authenticated loopback connection and private,
+ephemeral endpoint records under the plugin state directory. These records are
+removed on normal exit. Restart a viewer opened by an older build to enable reuse.
+Missing files produce an error in Herdr's plugin action log rather than launching
+an external application. This integration is currently available on macOS and Linux.

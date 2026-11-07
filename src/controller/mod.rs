@@ -656,6 +656,7 @@ pub(crate) enum DiscardAction {
     /// Re-root to an already-resolved worktree. Boxed: `Resolved` is much larger than the other
     /// variants, and this enum lives inside every `Modal`.
     SwitchRoot(Box<crate::root::Resolved>),
+    OpenLink(Box<crate::root::Resolved>, crate::open_target::OpenTarget),
 }
 
 impl DiscardAction {
@@ -663,7 +664,7 @@ impl DiscardAction {
     fn verb(&self) -> &'static str {
         match self {
             DiscardAction::Quit => "quit",
-            DiscardAction::SwitchRoot(_) => "switch",
+            DiscardAction::SwitchRoot(_) | DiscardAction::OpenLink(..) => "switch",
         }
     }
 
@@ -672,7 +673,7 @@ impl DiscardAction {
     fn proceed_key(&self) -> KeyCode {
         match self {
             DiscardAction::Quit => KeyCode::Char('q'),
-            DiscardAction::SwitchRoot(_) => KeyCode::Enter,
+            DiscardAction::SwitchRoot(_) | DiscardAction::OpenLink(..) => KeyCode::Enter,
         }
     }
 }
@@ -1794,6 +1795,28 @@ impl Controller {
                 self.action_notice = Some("Changed only: no changed files (c shows all)".into());
             }
         }
+    }
+
+    /// Navigate a file-link request, preserving the normal root-switch confirmation guard.
+    pub fn open_link_target(&mut self, target: &crate::open_target::OpenTarget) {
+        let path = Path::new(&target.path);
+        if !path.is_file() {
+            self.action_notice = Some(format!("Could not open {}", target.path));
+            return;
+        }
+        if !path.starts_with(&self.root)
+            && let Some(parent) = path.parent()
+        {
+            self.re_root(parent);
+            if let Modal::DiscardConfirm(DiscardAction::SwitchRoot(resolved)) = &self.modal {
+                self.modal = Modal::DiscardConfirm(DiscardAction::OpenLink(
+                    resolved.clone(),
+                    target.clone(),
+                ));
+                return;
+            }
+        }
+        self.apply_open_target(target);
     }
 
     /// Apply a launch **open target** once at startup: resolve `path` under the tree **root**,
@@ -3230,6 +3253,18 @@ impl Controller {
     fn proceed_with(&mut self, action: DiscardAction) -> Effects {
         match action {
             DiscardAction::Quit => self.quit_now(),
+            DiscardAction::OpenLink(resolved, target) => {
+                if !Path::new(&target.path).is_file() {
+                    self.modal = Modal::None;
+                    self.action_notice = Some(format!("Could not open {}", target.path));
+                    return Effects::redraw();
+                }
+                let fx = self.proceed_with(DiscardAction::SwitchRoot(resolved));
+                if Path::new(&target.path).starts_with(&self.root) {
+                    self.apply_open_target(&target);
+                }
+                fx
+            }
             DiscardAction::SwitchRoot(resolved) => {
                 // The confirm held this target across arbitrary user think-time, and `apply_re_root`
                 // validates nothing, so re-check what `re_root` checked before committing. Without

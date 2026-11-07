@@ -21,6 +21,8 @@ pub mod infile;
 pub mod input;
 pub mod intent;
 pub mod launch;
+#[cfg(unix)]
+pub mod link_open;
 pub mod open_target;
 pub mod opener;
 pub mod picker;
