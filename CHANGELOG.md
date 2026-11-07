@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Ctrl-click terminal file links to open them in Files on macOS and Linux with a compatible Herdr build. Reuse the latest viewer in the same tab while keeping terminal focus.
+
+## [Unreleased]
+
 ### Fixed
 - A repository can no longer run a program through a submodule `diff.external` (or, on older git, a submodule textconv) while a diff is shown. Nested submodule diffs stay a one-line gitlink summary. → [security](SECURITY.md)
 - The `?` Keybindings list and the remappable-actions table now describe `L` as tree-scroll or line-select, and `Tab` as cycling tree, active preview, and pinned preview. → [keys](docs/keys.md) · [configuration](docs/configuration.md#keybindings)

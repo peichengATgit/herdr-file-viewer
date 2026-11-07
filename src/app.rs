@@ -332,7 +332,13 @@ fn apply_input_effects(
 fn event_loop(terminal: &mut DefaultTerminal, controller: &mut Controller) -> io::Result<()> {
     let mut dirty = true; // paint the first frame
     let mut cwd_root = PathBuf::new();
+    #[cfg(unix)]
+    let mut links = crate::link_open::Receiver::bind()?;
     loop {
+        #[cfg(unix)]
+        if let Some(links) = links.as_ref() {
+            dirty |= links.poll(controller);
+        }
         follow_root(controller.root(), &mut cwd_root);
         draw_if_needed(terminal, controller, &mut dirty)?;
 
@@ -438,7 +444,13 @@ fn event_loop(terminal: &mut DefaultTerminal, controller: &mut Controller) -> io
                 // The pane regained focus (herdr forwards focus events to a pane that opts in):
                 // re-read git state so external changes — a merge, pull, or commit in another
                 // pane — show in the tree without a relaunch. FocusLost needs no action.
-                Event::FocusGained => dirty |= controller.handle_focus_gained().redraw,
+                Event::FocusGained => {
+                    #[cfg(unix)]
+                    if let Some(links) = links.as_mut() {
+                        links.focused();
+                    }
+                    dirty |= controller.handle_focus_gained().redraw;
+                }
                 Event::FocusLost => {}
                 // The pane was resized: redraw so the two-column layout and content reflow to
                 // the new geometry. `terminal.draw` autoresizes its buffers before drawing, so

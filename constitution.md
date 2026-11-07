@@ -20,3 +20,10 @@ These standing principles outlast any single feature. Change them deliberately.
 
 6. **YAGNI.** Ship the smallest change that delivers the core value. Reject scope that turns the
    viewer into a file manager or git client.
+
+7. **Explicit invocation.** Opening or navigating the viewer requires a deliberate user
+   action. A Ctrl-click file-link handler is an explicit action; printing a path,
+   hovering over it, or a background event must never launch or navigate the viewer.
+   File-link navigation preserves terminal focus and the existing annotation-discard
+   confirmation. Private endpoint records under the plugin state directory are
+   ephemeral transport metadata, removed on normal exit, rather than saved viewer state.

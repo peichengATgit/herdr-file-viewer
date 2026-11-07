@@ -3,6 +3,10 @@ use std::io::Read;
 use herdr_file_viewer::open_target::{self, CliAction};
 
 fn main() -> std::io::Result<()> {
+    #[cfg(unix)]
+    if std::env::args().nth(1).as_deref() == Some("--open-link") {
+        return herdr_file_viewer::link_open::invoke();
+    }
     // Argv parsing lives in the library (`open_target::parse_args`) so it is unit-tested and so
     // unknown / bare flags degrade instead of killing a herdr-spawned pane.
     match open_target::parse_args(std::env::args().skip(1)) {

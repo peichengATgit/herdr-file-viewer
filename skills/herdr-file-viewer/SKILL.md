@@ -87,3 +87,8 @@ identified a likely location while explaining a diagnosis or change, offer a sho
 
 After launching, state the exact target you opened. If the target cannot be resolved to a real file
 under the viewer root, explain that rather than opening an arbitrary or outside-root path.
+
+Ctrl-click file links in a compatible Herdr TUI to preview them in Files without
+moving focus. The `open-link` plugin action receives `file:` targets through the
+link-handler context; relative paths use the clicked pane's directory. This works
+on macOS and Linux and reuses the most recently focused viewer in the same tab.

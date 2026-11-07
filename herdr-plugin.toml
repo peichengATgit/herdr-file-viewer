@@ -2,7 +2,7 @@
 #
 # A git-aware, read-only file viewer that herdr opens in a split pane beside the
 # user's current work. The viewer appears ONLY in response to an explicit action
-# (its keybinding) — there are no event hooks and no automatic invocation (AC-N4).
+# (a keybinding or deliberate file-link click) — there are no event hooks and no automatic invocation (AC-N4).
 #
 # Windows support is preview (see README's Windows section). Cross-platform packaging:
 #  - [[build]] has a unix (/bin/sh) and a Windows (PowerShell) entry, each gated by the
@@ -24,7 +24,7 @@
 
 id = "herdr-file-viewer"
 name = "herdr-file-viewer"
-version = "1.18.0"
+version = "1.19.0"
 description = "A git-aware, read-only file viewer: a keyboard-driven TUI in a herdr split pane."
 min_herdr_version = "0.7.5"
 platforms = ["linux", "macos", "windows"]
@@ -127,3 +127,17 @@ platforms = ["linux", "macos"]
 title = "Open file viewer at… (tab)"
 description = "Ask for a directory in a popup, then open the file viewer there in a new tab."
 command = ["bash", "scripts/open-file-viewer-at.sh", "tab"]
+
+# Explicit Ctrl-clicks only; the host resolves links on the source session.
+[[actions]]
+id = "open-link"
+title = "Open file link in Files"
+platforms = ["macos", "linux"]
+command = ["./target/release/herdr-file-viewer", "--open-link"]
+
+[[link_handlers]]
+id = "local-file"
+title = "Open file in Files"
+pattern = "^file:"
+action = "open-link"
+platforms = ["macos", "linux"]

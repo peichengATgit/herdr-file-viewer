@@ -267,8 +267,39 @@ fn declares_no_event_hooks() {
         !m.contains("[[events]]"),
         "AC-N4/AC-N6: manifest must declare no [[events]] hooks"
     );
-    assert!(
-        !m.contains("[[link_handlers]]"),
-        "manifest must declare no [[link_handlers]] (no automatic invocation path)"
+    // Constitution principle 7 permits a deliberate file-link click while retaining
+    // the AC-N4/AC-N6 ban on event hooks and automatic prompt entry.
+}
+
+#[test]
+fn declares_explicit_file_link_handler_only() {
+    let manifest: toml::Value = toml::from_str(&manifest_raw()).expect("valid manifest");
+    let handlers = manifest["link_handlers"].as_array().expect("link handlers");
+    assert_eq!(handlers.len(), 1);
+    let handler = &handlers[0];
+    assert_eq!(handler["pattern"].as_str(), Some("^file:"));
+    assert_eq!(handler["action"].as_str(), Some("open-link"));
+    let platforms = handler["platforms"].as_array().expect("platforms");
+    assert_eq!(
+        platforms
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["macos", "linux"]
+    );
+    let action = manifest["actions"]
+        .as_array()
+        .expect("actions")
+        .iter()
+        .find(|action| action["id"].as_str() == Some("open-link"))
+        .expect("declared action");
+    assert_eq!(
+        action["command"]
+            .as_array()
+            .expect("command")
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["./target/release/herdr-file-viewer", "--open-link"]
     );
 }

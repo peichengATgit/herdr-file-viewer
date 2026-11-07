@@ -10,7 +10,7 @@ use std::path::{Component, Path, PathBuf};
 
 /// A parsed launch open target: the path string (as given, path part only) and an optional
 /// 1-based source line (or inclusive range) to jump to after the file renders.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpenTarget {
     /// Path part only (no `:line` suffix). Relative to the tree **root**, or absolute under it.
     pub path: String,
