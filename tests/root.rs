@@ -26,15 +26,16 @@ fn plain_directory_is_its_own_root_and_not_a_git_repo() {
 }
 
 #[test]
-fn git_repo_root_is_the_repository_toplevel() {
+fn git_tree_root_is_the_invoking_directory_and_keeps_repo_root_separate() {
     let dir = TempDir::new();
     git(dir.path(), &["init", "-q"]);
-    // Resolve from a nested subdirectory; root must still be the repo top-level.
+    // Resolve from a nested subdirectory; the tree stays there while Git keeps the repo root.
     let sub = dir.path().join("nested/inner");
     fs::create_dir_all(&sub).unwrap();
     let r = resolve(&ctx(&sub));
     assert!(r.is_git_repo);
-    assert_eq!(canon(&r.root), canon(dir.path()));
+    assert_eq!(canon(&r.root), canon(&sub));
+    assert_eq!(r.repo_root.as_deref().map(canon), Some(canon(dir.path())));
     assert!(!r.is_worktree); // the main working tree is not a linked worktree
 }
 
@@ -72,7 +73,7 @@ fn core_worktree_that_matches_the_opened_repo_still_resolves() {
     fs::create_dir_all(&sub).unwrap();
     let resolved = resolve(&ctx(&sub));
     assert!(resolved.is_git_repo);
-    assert_eq!(canon(&resolved.root), canon(dir.path()));
+    assert_eq!(canon(&resolved.root), canon(&sub));
     assert_eq!(
         resolved.repo_root.as_deref().map(canon),
         Some(canon(dir.path()))
@@ -143,7 +144,7 @@ fn invalid_git_dir_between_cwd_and_the_repo_does_not_hide_the_repo() {
     fs::create_dir_all(&sub).unwrap();
     let resolved = resolve(&ctx(&sub));
     assert!(resolved.is_git_repo);
-    assert_eq!(canon(&resolved.root), canon(dir.path()));
+    assert_eq!(canon(&resolved.root), canon(&sub));
     assert_eq!(
         resolved.repo_root.as_deref().map(canon),
         Some(canon(dir.path()))
@@ -175,7 +176,7 @@ fn submodule_resolves_to_the_submodule_checkout() {
     fs::create_dir_all(&inner).unwrap();
     let resolved = resolve(&ctx(&inner));
     assert!(resolved.is_git_repo);
-    assert_eq!(canon(&resolved.root), canon(&checkout));
+    assert_eq!(canon(&resolved.root), canon(&inner));
     assert_eq!(
         resolved.repo_root.as_deref().map(canon),
         Some(canon(&checkout))

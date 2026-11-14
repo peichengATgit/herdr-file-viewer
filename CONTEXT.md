@@ -31,8 +31,9 @@ Canonical vocabulary for this repo. Glossary only: no implementation detail, no 
   the baseline for reviewing the full body of work in a worktree.
 - **changed-only filter**: a toggle that restricts the tree to files git reports as
   changed against the active diff baseline.
-- **root**: the directory the tree is rooted at: the worktree root, or the pane's cwd
-  when not in a worktree. The viewer does not browse above it.
+- **root**: the directory the tree is rooted at: normally the focused pane's cwd, or the explicit
+  directory chosen by the root picker. The viewer does not browse above it. Git status and diff
+  queries run from the containing worktree root, restricted to the displayed subtree.
 - **re-root**: change the **root** at runtime: re-resolve it and rebuild the tree and
   git view from the new root, in place. Distinct from launch-time root resolution;
   read-only and session-only (a re-root never persists past relaunch).

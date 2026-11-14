@@ -74,9 +74,18 @@ pub enum Baseline {
 
 /// Per-file working-tree status, keyed by repo-root-relative path.
 pub fn status(repo_root: &Path) -> BTreeMap<PathBuf, Status> {
+    status_scoped(repo_root, Path::new(""))
+}
+
+/// Query only `scope` below the worktree root, retaining repo-relative result paths.
+pub fn status_scoped(repo_root: &Path, scope: &Path) -> BTreeMap<PathBuf, Status> {
     // -uall lists each untracked file individually (not a collapsed `dir/`); -z gives
     // verbatim NUL-delimited paths (no quoting/escaping to misparse).
-    match run_bytes(repo_root, &["status", "--porcelain=v1", "-z", "-uall"]) {
+    match run_scoped_bytes(
+        repo_root,
+        &["status", "--porcelain=v1", "-z", "-uall"],
+        scope,
+    ) {
         // Not a repo / git unavailable → empty (AC-26).
         None => BTreeMap::new(),
         Some(out) => parse_porcelain_status(&out),
@@ -186,18 +195,28 @@ pub fn changed_set(
     baseline: Baseline,
     base_hint: Option<&str>,
 ) -> BTreeMap<PathBuf, Status> {
+    changed_set_scoped(repo_root, baseline, base_hint, Path::new(""))
+}
+
+/// Baseline changes restricted by a literal worktree-relative directory pathspec.
+pub fn changed_set_scoped(
+    repo_root: &Path,
+    baseline: Baseline,
+    base_hint: Option<&str>,
+    scope: &Path,
+) -> BTreeMap<PathBuf, Status> {
     match baseline {
         // Uncommitted changes vs HEAD — exactly the working-tree status.
-        Baseline::Head => status(repo_root),
+        Baseline::Head => status_scoped(repo_root, scope),
         Baseline::Base => {
             // No resolvable base → degrade to a HEAD comparison (consistent with diff()).
             let Some(fork) = base_fork_point(repo_root, base_hint) else {
-                return status(repo_root);
+                return status_scoped(repo_root, scope);
             };
             // `git diff <fork>` compares the fork-point tree to the working tree, so it
             // already includes committed-on-branch AND uncommitted tracked changes.
             let mut map = BTreeMap::new();
-            if let Some(out) = run_bytes(
+            if let Some(out) = run_scoped_bytes(
                 repo_root,
                 &[
                     "diff",
@@ -207,11 +226,12 @@ pub fn changed_set(
                     "-z",
                     &fork,
                 ],
+                scope,
             ) {
                 map = parse_name_status(&out);
             }
             // Untracked files aren't in `git diff` but are part of the body of work.
-            for (path, s) in status(repo_root) {
+            for (path, s) in status_scoped(repo_root, scope) {
                 if s == Status::Untracked {
                     map.entry(path).or_insert(Status::Untracked);
                 }
@@ -313,7 +333,7 @@ pub fn diff_directory(
     args.push("--");
     let mut cmd = git_command(repo_root, &args);
     if !rel_dir.as_os_str().is_empty() {
-        cmd.arg(rel_dir);
+        cmd.arg(literal_scope(rel_dir));
     }
     let mut output = capture_stdout(cmd);
 
@@ -333,7 +353,7 @@ pub fn diff_directory(
     // are the lexicographically-first ones (deterministic), not an arbitrary subset.
     let cap = MAX_DIFF_BYTES as usize;
     let mut spawned = 0usize;
-    for (path, state) in status(repo_root) {
+    for (path, state) in status_scoped(repo_root, rel_dir) {
         if cap.saturating_sub(output.len()) == 0 || spawned >= MAX_UNTRACKED_DIFF_FILES {
             break;
         }
@@ -614,6 +634,29 @@ fn capture_stdout(mut cmd: Command) -> String {
 /// `None` if git is missing or exits non-zero (degrade to a plain browser, AC-26).
 fn run_bytes(repo_root: &Path, args: &[&str]) -> Option<Vec<u8>> {
     let out = git_command(repo_root, args).output().ok()?;
+    out.status.success().then_some(out.stdout)
+}
+
+fn literal_scope(scope: &Path) -> OsString {
+    let mut pathspec = OsString::from(":(top,literal)");
+    pathspec.push(scope.as_os_str());
+    pathspec
+}
+
+/// Bound enumeration inside Git itself, before output is collected or projected into the tree.
+fn run_scoped_bytes(repo_root: &Path, args: &[&str], scope: &Path) -> Option<Vec<u8>> {
+    if scope
+        .components()
+        .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir))
+    {
+        return None;
+    }
+    let mut cmd = git_command(repo_root, args);
+    cmd.arg("--");
+    if !scope.as_os_str().is_empty() {
+        cmd.arg(literal_scope(scope));
+    }
+    let out = cmd.output().ok()?;
     out.status.success().then_some(out.stdout)
 }
 

@@ -189,9 +189,8 @@ fn viewer_opens_an_absolute_file_handed_over_with_its_root() {
 }
 
 #[test]
-fn a_picked_file_in_a_repo_subdirectory_opens_under_the_worktree_root() {
-    // The root widens to the worktree top level; the canonical file path must still sit under it
-    // (macOS temp dirs are behind the /var -> /private/var symlink, so this checks canonical forms).
+fn a_picked_file_in_a_repo_subdirectory_opens_under_its_parent_directory() {
+    // The chosen directory remains the tree root, even inside a repo.
     let launched_from = TempDir::new();
     let repo = TempDir::new();
     common::init_repo_with_commit(repo.path());
@@ -205,7 +204,7 @@ fn a_picked_file_in_a_repo_subdirectory_opens_under_the_worktree_root() {
     let mut s = Session::spawn(cmd).expect("spawn the viewer");
     s.set_expect_timeout(Some(Duration::from_secs(15)));
     s.expect("DEEP_FILE_MARKER")
-        .expect("the file opens even though the root widened to the repo");
+        .expect("the file opens under the picked directory");
     s.send("q").unwrap();
     s.expect(Eof).expect("viewer exits");
 }

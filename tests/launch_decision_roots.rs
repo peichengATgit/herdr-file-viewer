@@ -1,6 +1,6 @@
 //! The binary's `--launch-decision-tab` with the REAL root resolver (`src/main.rs`): a pane cwd
-//! maps to its worktree top level, canonicalized, so a shell in a subdirectory (or behind a
-//! symlink such as macOS `/tmp` → `/private/tmp`) matches the viewer showing that repo, and a
+//! is the tree root, canonicalized, so a shell and viewer in the same directory (or behind a
+//! symlink such as macOS `/tmp` → `/private/tmp`) match, and a
 //! viewer the root picker opened on another directory is not switched to.
 #![cfg(unix)]
 
@@ -38,7 +38,7 @@ fn pane(id: &str, label: &str, focused: bool, tab: &str, cwd: &Path) -> String {
 }
 
 #[test]
-fn switches_to_the_viewer_of_the_focused_repo_from_a_subdirectory() {
+fn switches_to_the_viewer_of_the_focused_subdirectory() {
     let repo = TempDir::new();
     init_repo_with_commit(repo.path());
     std::fs::create_dir_all(repo.path().join("src/deep")).unwrap();
@@ -49,8 +49,14 @@ fn switches_to_the_viewer_of_the_focused_repo_from_a_subdirectory() {
         pane("w1:p1", "", true, "w1:t1", &repo.path().join("src/deep")),
         // A picker-opened viewer on an unrelated directory comes first in the list...
         pane("w1:pA", "Files", false, "w1:t2", &canon(elsewhere.path())),
-        // ...and the repo's viewer, whose cwd is its (canonical) root.
-        pane("w1:pB", "Files", false, "w1:t3", &canon(repo.path())),
+        // ...and the viewer for this (canonical) subdirectory.
+        pane(
+            "w1:pB",
+            "Files",
+            false,
+            "w1:t3",
+            &canon(&repo.path().join("src/deep")),
+        ),
     ]);
     assert_eq!(d, "SWITCHTAB w1:t3");
 }

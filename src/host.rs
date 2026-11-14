@@ -20,9 +20,9 @@ pub const ROOT_ENV: &str = "HERDR_FILE_VIEWER_ROOT";
 struct RawContext {
     /// herdr 0.7.0 reports the invoking pane's directory as `focused_pane_cwd` and the
     /// workspace root as `workspace_cwd`; a plain `cwd` is accepted as a fallback. The viewer
-    /// roots at the most specific of these so the tree shows the directory the user is in — not
-    /// the plugin's own install dir, where the pane process is actually started (the pane
-    /// command is a relative path, so herdr launches it from the plugin root).
+    /// roots the tree at the invoking pane's directory — not the plugin's own install dir, where
+    /// the pane process is actually started (the pane command is relative, so herdr launches it
+    /// from the plugin root).
     focused_pane_cwd: Option<String>,
     workspace_cwd: Option<String>,
     cwd: Option<String>,

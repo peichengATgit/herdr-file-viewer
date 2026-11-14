@@ -55,7 +55,7 @@ panes. Logical components and their one-line responsibilities (full contracts in
 and the spec chain):
 
 - **Host Adapter**: the herdr boundary: manifest declaration + parsing injected context + open-pane requests
-- **Root Resolver**: resolve the tree root (worktree root vs cwd) and git-presence
+- **Root Resolver**: use the invoking directory as the tree root and resolve the containing worktree separately
 - **Tree Model**: the rooted, gitignore-aware file tree + filters + cursor
 - **Git Service**: read-only git queries (status, baseline, changed-set, diff)
 - **View Policy**: pure decision: which view mode for a file (changed→diff, md→rendered, else→content)
@@ -257,10 +257,11 @@ RELATIVE pane command (and inside a built plugin checkout silently runs *that* c
 while the shipped launcher never passed it (#139). Change all of them together, and keep
 `no_documented_launch_passes_cwd_to_plugin_pane_open` (`tests/docs_consistency.rs`) honest — it holds
 the docs and the scripts to one rule so this divergence fails the build instead of reaching a user.
-The viewed root comes from the FOCUSED herdr pane's cwd (resolved to its worktree top level), never
-from a flag. The one explicit exception is `HERDR_FILE_VIEWER_ROOT` (passed with `--env`, never
-`--cwd`): the root picker (`--pick-root`, the `open-file-viewer-at[-tab]` actions) and agents use it to name
-a root on purpose. A running viewer keeps its process cwd on its root; the tab launcher's
+The viewed root comes from the FOCUSED herdr pane's cwd, never from a flag. Git queries resolve the
+containing worktree separately. The one explicit exception is `HERDR_FILE_VIEWER_ROOT` (passed with
+`--env`, never `--cwd`): the root picker (`--pick-root`, the `open-file-viewer-at[-tab]` actions)
+and agents use it to name a directory on purpose. A running viewer keeps its process cwd on its
+tree root; the tab launcher's
 root-aware switch depends on that, so do not add code that relies on the process cwd, and start
 any new external tool through `proc::in_launch_dir` (or an explicit dir) so it never runs inside
 the viewed repository.

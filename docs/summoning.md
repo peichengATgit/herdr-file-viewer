@@ -75,16 +75,16 @@ A second action, `open-file-viewer-tab`, opens the viewer in its **own tab** thr
 `scripts/open-file-viewer-tab.sh` and `--placement tab`. Its launcher is idempotent across the tabs
 of the current workspace, so it opens, switches to, focuses, or closes the viewer:
 
-- With no viewer for this repo in this workspace, open it in a focused new tab.
-- With a viewer **showing this repo** in another tab of this workspace, **switch to that tab**
+- With no viewer for this directory in this workspace, open it in a focused new tab.
+- With a viewer **showing this directory** in another tab of this workspace, **switch to that tab**
   instead of opening a duplicate.
 - With an unfocused viewer in the current tab, focus it.
 - With the viewer focused, close it. herdr then closes the empty tab.
 
-The switch is **root-aware**: "this repo" is the worktree (or, outside git, the directory) of the
-pane you pressed the key in, so a viewer you opened on another directory with
+The switch is **root-aware**: "this directory" is the focused pane's current directory, so a viewer
+you opened on another directory with
 [Open at another directory](#open-at-another-directory) is not mistaken for it. A running viewer
-keeps its process working directory on the root it shows, which is how the launcher tells them
+keeps its process working directory on the directory it shows, which is how the launcher tells them
 apart.
 
 The idempotency is scoped to the **current workspace**: a viewer already open in a *different*
@@ -126,9 +126,8 @@ Paths resolve from your home directory first: `Workspace/app` means `~/Workspace
 not exist, the same path is tried from `/`, so `private/tmp/x` (or `~/private/tmp/x`) finds
 `/private/tmp/x` without a leading slash; `Tab` rewrites the line to the absolute path it found. An
 absolute path is used as typed, and one typed or pasted straight after the `~/` prefill
-(`~//private/tmp`) counts as absolute too. The tree then roots exactly as a normal summon would, at that directory's
-worktree top level inside git, else the directory itself. Picking a file roots the viewer at the
-file's directory the same way and opens the file in the content pane. A path that does not exist
+(`~//private/tmp`) counts as absolute too. The tree then roots exactly at that directory. Picking a
+file roots the viewer at the file's directory and opens the file in the content pane. A path that does not exist
 shows an error in the popup, so you can fix it or cancel.
 
 ```toml

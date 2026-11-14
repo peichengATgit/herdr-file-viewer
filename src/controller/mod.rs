@@ -221,16 +221,16 @@ const HELP_FOOTER_HINT: &str = "Tab/←→ switch · 1-9 jump · j/k scroll · E
 /// the run loop injects an implementation bound to the real repository. `Send + Sync` so the
 /// diff query can run on the render worker thread, off the input path (AC-23).
 pub trait GitService: Send + Sync {
-    /// Working-tree status per repo-root-relative path (drives tree markers, AC-7).
+    /// Working-tree status per displayed-tree-relative path (drives tree markers, AC-7).
     fn status(&self) -> BTreeMap<PathBuf, Status>;
     /// The set of files changed against `baseline` (drives the changed-only filter, AC-6,
     /// and is recomputed when the baseline toggles, AC-16).
     fn changed_set(&self, baseline: Baseline) -> BTreeMap<PathBuf, Status>;
-    /// Raw unified diff text for one repo-root-relative path against `baseline` (AC-9). With
+    /// Raw unified diff text for one displayed-tree-relative path against `baseline` (AC-9). With
     /// `full_context`, git emits the whole file as context (for the full-file diff view);
     /// otherwise it returns the compact hunks-only diff.
     fn diff(&self, rel_path: &Path, baseline: Baseline, full_context: bool) -> String;
-    /// Raw unified diff for every tracked change under a repo-root-relative directory against
+    /// Raw unified diff for every tracked change under a displayed-tree-relative directory against
     /// `baseline`. Empty `rel_dir` means the whole tree root. Used by git-status mode (`d`)
     /// when a directory is selected.
     fn diff_directory(&self, rel_dir: &Path, baseline: Baseline) -> String;
@@ -554,11 +554,11 @@ impl Effects {
 struct RenderJob {
     seq: u64,
     path: PathBuf,
-    /// Root/worktree identity captured when this render was dispatched.
+    /// Git worktree identity captured when this render was dispatched (the tree root outside Git).
     root: PathBuf,
     /// Branch identity captured with `root`; never inferred from the cursor when the result lands.
     branch: BranchState,
-    /// Repo-root-relative path for the git diff query (`None` if outside the root).
+    /// Displayed-tree-relative path for the git diff query (`None` if outside the root).
     rel: Option<PathBuf>,
     mode: ViewMode,
     baseline: Baseline,
@@ -607,8 +607,8 @@ struct ProjectSearchCompletion {
 }
 
 /// A re-root's off-thread git result: the working-tree status (tree markers, AC-7) and the
-/// changed-set against the active baseline (the changed-only filter, AC-6), both keyed by
-/// repo-root-relative path. Carried over a one-shot channel from the worker `re_root` spawns to
+/// changed-set against the active baseline (the changed-only filter, AC-6), both projected to
+/// displayed-tree-relative paths. Carried over a one-shot channel from the worker `re_root` spawns to
 /// the `poll` that applies them.
 type StatusResult = (BTreeMap<PathBuf, Status>, BTreeMap<PathBuf, Status>);
 
@@ -781,6 +781,8 @@ impl Modal {
 /// The interaction orchestrator and the ephemeral session state.
 pub struct Controller {
     root: PathBuf,
+    /// The Git worktree containing `root`; distinct when Files opens from a nested pane cwd.
+    repo_root: Option<PathBuf>,
     is_git_repo: bool,
     baseline: Baseline,
     show_ignored: bool,
@@ -1076,6 +1078,7 @@ impl Controller {
         });
         let RootProviders { git, content } = providers(&resolved);
         let root = resolved.root.clone();
+        let repo_root = resolved.repo_root.clone();
         let is_git_repo = resolved.is_git_repo;
         // The launch base-branch hint is session-level — recorded once here and carried across
         // re-roots (F). It is `None` outside a repo / when herdr gave no hint.
@@ -1100,6 +1103,7 @@ impl Controller {
         let mut ctrl = Controller {
             tree: TreeModel::new(root.clone()),
             root,
+            repo_root,
             is_git_repo,
             baseline,
             show_ignored: false,
@@ -1338,8 +1342,9 @@ impl Controller {
             base_branch: self.base_branch.clone(),
             ..Default::default()
         });
-        // AC-11: re-selecting the worktree we're already rooted at is a clean no-op — no
-        // rebuild, no notice, no state change (canonicalize so /tmp vs /private/tmp matches).
+        // AC-11: re-selecting the exact displayed root is a clean no-op — no rebuild, notice, or
+        // state change (canonicalize so /tmp vs /private/tmp matches). The picker skips its
+        // already-current worktree row because a tree root may be nested below that worktree root.
         let target_canon = resolved
             .root
             .canonicalize()
@@ -1379,6 +1384,7 @@ impl Controller {
 
         // New root + fresh tree (this alone clears the cursor + expansions).
         self.root = resolved.root.clone();
+        self.repo_root = resolved.repo_root.clone();
         self.is_git_repo = resolved.is_git_repo;
         self.tree = TreeModel::new(resolved.root.clone());
         self.tree.set_is_git_repo(self.is_git_repo);
@@ -3099,7 +3105,7 @@ impl Controller {
             match kind {
                 PathKind::Absolute => node.path.to_string_lossy().into_owned(),
                 PathKind::Repo => self
-                    .rel(&node.path)
+                    .repo_rel(&node.path)
                     .unwrap_or_else(|| node.path.clone())
                     .to_string_lossy()
                     .into_owned(),
@@ -3663,7 +3669,7 @@ impl Controller {
         // never receive a result for this seq, which is fine (nothing was cleared).
         let _ = self.job_tx.send(RenderJob {
             seq,
-            root: self.root.clone(),
+            root: self.repo_root.clone().unwrap_or_else(|| self.root.clone()),
             branch: self.captured_branch(),
             presentation: self.preview_presentation(mode),
             path,
@@ -3749,7 +3755,7 @@ impl Controller {
             .job_tx
             .send(RenderJob {
                 seq,
-                root: self.root.clone(),
+                root: self.repo_root.clone().unwrap_or_else(|| self.root.clone()),
                 branch: self.captured_branch(),
                 presentation: self.preview_presentation(mode),
                 path: node.path,
@@ -3820,12 +3826,11 @@ impl Controller {
                         presentation: job.presentation,
                     }
                 } else {
-                    let root_relative_path = job.rel.clone().unwrap_or_else(|| {
-                        job.path
-                            .strip_prefix(&job.root)
-                            .unwrap_or(&job.path)
-                            .to_path_buf()
-                    });
+                    let root_relative_path = job
+                        .path
+                        .strip_prefix(&job.root)
+                        .unwrap_or(&job.path)
+                        .to_path_buf();
                     ActiveDisplay::Document(PreviewDocument::new(
                         result.content,
                         result.notices,
@@ -3991,16 +3996,22 @@ impl Controller {
         })
     }
 
-    /// `path` made relative to the tree root (how git keys its maps); `None` if outside it.
+    /// `path` made relative to the displayed tree root; `None` if outside it.
     fn rel(&self, path: &Path) -> Option<PathBuf> {
         path.strip_prefix(&self.root).ok().map(Path::to_path_buf)
+    }
+
+    /// `path` made repo-relative for copy and preview identity; outside Git, use the tree root.
+    fn repo_rel(&self, path: &Path) -> Option<PathBuf> {
+        let root = self.repo_root.as_deref().unwrap_or(&self.root);
+        path.strip_prefix(root).ok().map(Path::to_path_buf)
     }
 }
 
 /// Which form of the selected node's path the copy keys put on the clipboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PathKind {
-    /// Relative to the tree/repo root (`y`), e.g. `src/app.rs`.
+    /// Relative to the repository root (`y`), e.g. `src/app.rs`.
     Repo,
     /// The full absolute path (`Y`).
     Absolute,

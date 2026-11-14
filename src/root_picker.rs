@@ -280,8 +280,8 @@ pub enum Outcome {
     Open(Target),
 }
 
-/// What `Enter` resolved to: the directory the viewer roots at (then the usual worktree
-/// resolution), and the file to open in it when a file was picked.
+/// What `Enter` resolved to: the exact directory the viewer roots at, and the file to open in it
+/// when a file was picked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     /// Canonical directory: the picked directory, or a picked file's parent.

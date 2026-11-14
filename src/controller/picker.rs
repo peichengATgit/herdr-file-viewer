@@ -83,9 +83,11 @@ impl Controller {
                     .modal
                     .picker()
                     .and_then(|p| p.rows.get(p.cursor))
-                    .map(|w| w.path.clone());
+                    .map(|w| (w.path.clone(), w.is_current));
                 self.modal = Modal::None;
-                if let Some(target) = target {
+                if let Some((target, is_current)) = target
+                    && !is_current
+                {
                     self.re_root(&target);
                 }
                 Effects::redraw()
@@ -108,7 +110,13 @@ impl Controller {
                 Some("worktree switch is only available inside a git repository".into());
             return Effects::redraw();
         }
-        let rows = crate::worktree::list(&self.root, &self.root);
+        let Some(repo_root) = self.repo_root.as_deref() else {
+            self.action_notice = Some("could not resolve the current Git worktree".into());
+            return Effects::redraw();
+        };
+        // A nested pane cwd is the tree root, but the picker identifies the active worktree by
+        // its repository root.
+        let rows = crate::worktree::list(repo_root, repo_root);
         if rows.is_empty() {
             // git failed/no worktrees (shouldn't happen in a repo) — notice, no picker.
             self.action_notice = Some("could not list worktrees".into());

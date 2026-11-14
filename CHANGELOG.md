@@ -11,6 +11,11 @@ All notable changes to this project are documented here. The format is based on
 
 - Ctrl-click terminal file links to open them in Files on macOS and Linux with a compatible Herdr build. Reuse the latest viewer in the same tab while keeping terminal focus.
 
+### Changed
+
+- Git status, baseline change lists, and directory-diff untracked discovery now query only the displayed subtree, including directory names containing spaces or Git pathspec characters.
+- Files now roots its tree at the focused pane's directory while keeping Git status and diff queries anchored to the containing worktree. Explicit open targets elsewhere in that worktree widen the tree so the requested file remains visible. → [usage](docs/usage.md#the-tree)
+
 ## [Unreleased]
 
 ### Fixed

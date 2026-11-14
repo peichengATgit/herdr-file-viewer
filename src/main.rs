@@ -19,8 +19,7 @@ fn main() -> std::io::Result<()> {
         CliAction::LaunchDecisionTab => {
             let mut json = String::new();
             std::io::stdin().read_to_string(&mut json)?;
-            // Root-aware: map each pane cwd to its tree root the same way the viewer roots itself
-            // (worktree top level, else the directory), canonicalized so herdr's reported cwd
+            // Root-aware: use each pane's cwd as its tree root, canonicalized so herdr's reported cwd
             // (e.g. `/private/tmp`) and the user's path (`/tmp`) compare equal.
             let resolve_root = |cwd: &std::path::Path| {
                 let ctx = herdr_file_viewer::context::LaunchContext {

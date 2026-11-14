@@ -21,17 +21,20 @@ customize it.
 
 ## The tree
 
-The left column is a recursive, expandable directory tree, **rooted at the worktree root** when you
-launch inside a git repo, otherwise at the launch directory, or at a directory you choose with
-[Open at another directory](summoning.md#open-at-another-directory). If the repo config names a
-worktree other than the directory that contains the `.git` entry you opened, that path is ignored
-and the tree stays on the launch directory. It honors `.gitignore` (press `i` to
-reveal ignored files, or set [`show_ignored = true`](configuration.md) to start with them visible),
-and a separate toggle (`.`) hides dot-prefixed "hidden" files and folders when a directory is full
-of them. Ignored paths often contain local credentials or generated secrets, so keep the startup
-setting off unless you need it; `.git/` itself always stays hidden. The tree's **top border names the root** directory and its
-**bottom border shows the current branch**, so you always know *where* and *on what branch* you're
-looking.
+The left column is a recursive, expandable directory tree, **rooted at the focused pane's current
+directory** when you launch Files, or at a directory you choose with
+[Open at another directory](summoning.md#open-at-another-directory). Inside a Git worktree, status
+and diff queries run from the worktree root with a literal pathspec restricted to the displayed
+directory. Files outside that subtree are excluded by Git before results reach the viewer. A
+valid explicit open target elsewhere in the same worktree widens the tree so Files can reveal it.
+If repo config names a different worktree than the directory containing the `.git` entry you
+opened, that path is ignored and the tree stays on the launch directory. The tree honors
+`.gitignore`: press `i` to reveal ignored files, or set [`show_ignored = true`](configuration.md)
+to start with them visible. A separate toggle (`.`) hides dot-prefixed "hidden" files and folders
+when a directory is full of them. Ignored paths often contain local credentials or generated
+secrets, so keep the startup setting off unless you need it; `.git/` itself always stays hidden.
+The tree's **top border names the root** directory and its **bottom border shows the current
+branch**, so you always know *where* and *on what branch* you're looking.
 
 The layout follows the pane's actual terminal dimensions, including a size adjustment while a
 herdr split is opening. It recovers without needing focus or navigation, even if the initial resize
@@ -98,10 +101,12 @@ omitted.
 When an agent, companion plugin, or script knows the path and optional line, it can start the viewer
 at that location. Interactive browsing through `f`, `:`, and the tree remains unchanged.
 
-The launch **open target** is a path under the tree **root** (repo-relative is the usual form;
-absolute paths under the root are also accepted), optionally with a 1-based line. This is the same
-shape a **line reference** copies with `L` (`src/app.rs` or `src/app.rs:42`). Every successful open
-shows a short status notice (`Opened path`, `Opened path:N`, or `Opened path:A-B`).
+The launch **open target** is a path under the tree **root** or, inside a Git worktree, a
+repo-relative path elsewhere in that worktree (absolute paths under the applicable root are also
+accepted), optionally with a 1-based line. An existing file outside the current tree widens it to
+the worktree root so it can be revealed. This is the same shape a **line reference** copies with
+`L` (`src/app.rs` or `src/app.rs:42`). Every successful open shows a short status notice (`Opened
+path`, `Opened path:N`, or `Opened path:A-B`).
 
 A **range** form (`src/app.rs:10-20`) also:
 
@@ -165,10 +170,9 @@ Examples: `src/app.rs`, `src/app.rs:42`, `src/app.rs:10-20`. Treat the target as
 not shell source: prefer a structured argv or process API, or shell-escape it before assigning and
 expanding it only within double quotes.
 
-The viewed root comes from the focused herdr pane's working directory (resolved to that repository's
-worktree top level), so an agent's own `cd` does not move it. To point it at a particular repository,
-add `--env "HERDR_FILE_VIEWER_ROOT=$repo"` with the repository's **absolute** path (a relative or
-missing path is ignored). Do not add `--cwd` to the launch: herdr resolves the pane's relative
+The viewed root comes from the focused herdr pane's working directory, so an agent's own `cd` does
+not move it. To point it at a different directory, add `--env "HERDR_FILE_VIEWER_ROOT=$repo"` with
+that directory's **absolute** path (a relative or missing path is ignored). Do not add `--cwd` to the launch: herdr resolves the pane's relative
 command against it, so it fails outside a built plugin checkout and silently runs that checkout's
 binary inside one.
 

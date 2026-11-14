@@ -54,7 +54,32 @@ pub fn run(open_flag: Option<String>) -> io::Result<()> {
     // Before anything can move the cwd (`follow_root`): external tools keep running from here.
     crate::proc::remember_launch_dir();
     let ctx = host::from_env();
-    let resolved = root::resolve(&ctx);
+    let mut resolved = root::resolve(&ctx);
+    // Parse an explicit file target before building the tree. The ordinary summon stays rooted
+    // at the pane cwd, but a repo-relative target elsewhere in that worktree needs a tree that can
+    // reveal it; in that explicit-open case, widen to the worktree root.
+    let open_env = std::env::var(crate::open_target::OPEN_ENV).ok();
+    let open_target = crate::open_target::pick_raw_open(open_flag.as_deref(), open_env.as_deref())
+        .as_deref()
+        .and_then(|raw| {
+            crate::open_target::parse_open_target_preferring_file(raw, |candidate| {
+                let under_tree = crate::open_target::resolve_under_root(&resolved.root, candidate)
+                    .is_some_and(|path| path.is_file());
+                let under_repo = resolved.repo_root.as_deref().is_some_and(|repo_root| {
+                    crate::open_target::resolve_under_root(repo_root, candidate)
+                        .is_some_and(|path| path.is_file())
+                });
+                under_tree || under_repo
+            })
+        });
+    if let (Some(target), Some(repo_root)) = (&open_target, &resolved.repo_root)
+        && let Some(repo_path) =
+            crate::open_target::resolve_under_root(repo_root, &target.path).filter(|p| p.is_file())
+        && crate::open_target::resolve_under_root(&resolved.root, &target.path).as_ref()
+            != Some(&repo_path)
+    {
+        resolved.root = repo_root.clone();
+    }
 
     // Load + resolve the plugin's optional TOML config once, up front (AC-3..AC-5, AC-14, AC-16,
     // AC-17): `eff` is the fully-resolved config > env > default settings the rest of `run` wires
@@ -86,6 +111,14 @@ pub fn run(open_flag: Option<String>) -> io::Result<()> {
                     .repo_root
                     .clone()
                     .unwrap_or_else(|| resolved.root.clone()),
+                // Git returns paths relative to the worktree, while the controller indexes them
+                // relative to the displayed tree. Keep only paths visible under a nested pane cwd.
+                tree_prefix: resolved
+                    .repo_root
+                    .as_deref()
+                    .and_then(|repo_root| resolved.root.strip_prefix(repo_root).ok())
+                    .map(Path::to_path_buf)
+                    .unwrap_or_default(),
                 base_hint: resolved.base_branch.clone(),
             });
             let content: Box<dyn ContentProvider> = Box::new(LiveContent {
@@ -155,15 +188,8 @@ pub fn run(open_flag: Option<String>) -> io::Result<()> {
     // Launch open target (GH #109): CLI `--open` wins over `HERDR_FILE_VIEWER_OPEN`. Applied
     // after layout/config wiring so reveal + render see the same filters as a live session.
     // Soft-fails with an action notice; never aborts startup.
-    let open_env = std::env::var(crate::open_target::OPEN_ENV).ok();
-    let root = controller.root().to_path_buf();
-    let names_a_file =
-        |raw: &str| crate::open_target::resolve_under_root(&root, raw).is_some_and(|p| p.is_file());
-    if let Some(raw) = crate::open_target::pick_raw_open(open_flag.as_deref(), open_env.as_deref())
-        && let Some(target) =
-            crate::open_target::parse_open_target_preferring_file(&raw, names_a_file)
-    {
-        controller.apply_open_target(&target);
+    if let Some(target) = &open_target {
+        controller.apply_open_target(target);
     }
     // Format the Settings section body for the `?` overlay (AC-15, AC-18): reflects the load
     // outcome plus every effective setting, so a user can see what's actually in effect, and the
@@ -244,7 +270,7 @@ pub fn run(open_flag: Option<String>) -> io::Result<()> {
 
 /// Keep the process cwd on the tree root, re-syncing after a worktree switch re-roots the
 /// session. herdr reports each pane's live process cwd in `pane list`, so this is how the
-/// root-aware tab launcher (`launch::launch_decision_tab`) learns which root a running viewer
+/// root-aware tab launcher (`launch::launch_decision_tab`) learns which directory a running viewer
 /// shows without any extra host API. Children must not inherit this cwd (it may be an untrusted
 /// repository): git runs with explicit `-C <repo>`, and every other external tool goes through
 /// [`crate::proc::in_launch_dir`], which pins it to the directory herdr launched us from.
@@ -479,20 +505,49 @@ fn event_loop(terminal: &mut DefaultTerminal, controller: &mut Controller) -> io
 /// The live Git Service: read-only queries against the resolved repository (AC-7/9/16).
 struct LiveGit {
     repo_root: PathBuf,
+    tree_prefix: PathBuf,
     base_hint: Option<String>,
+}
+
+impl LiveGit {
+    /// Translate a repo-relative Git path into the displayed tree's relative path, dropping
+    /// changes outside the pane's subtree.
+    fn project_paths(&self, paths: BTreeMap<PathBuf, Status>) -> BTreeMap<PathBuf, Status> {
+        paths
+            .into_iter()
+            .filter_map(|(path, status)| {
+                let tree_path = if self.tree_prefix.as_os_str().is_empty() {
+                    path
+                } else {
+                    path.strip_prefix(&self.tree_prefix).ok()?.to_path_buf()
+                };
+                Some((tree_path, status))
+            })
+            .collect()
+    }
+
+    /// Convert a tree-relative selection to the path Git expects from the worktree root.
+    fn repo_path(&self, tree_path: &Path) -> PathBuf {
+        self.tree_prefix.join(tree_path)
+    }
 }
 
 impl GitService for LiveGit {
     fn status(&self) -> BTreeMap<PathBuf, Status> {
-        git::status(&self.repo_root)
+        self.project_paths(git::status_scoped(&self.repo_root, &self.tree_prefix))
     }
     fn changed_set(&self, baseline: Baseline) -> BTreeMap<PathBuf, Status> {
-        git::changed_set(&self.repo_root, baseline, self.base_hint.as_deref())
+        self.project_paths(git::changed_set_scoped(
+            &self.repo_root,
+            baseline,
+            self.base_hint.as_deref(),
+            &self.tree_prefix,
+        ))
     }
     fn diff(&self, rel_path: &Path, baseline: Baseline, full_context: bool) -> String {
         git::diff(
             &self.repo_root,
-            rel_path,
+            &self.repo_path(rel_path),
             baseline,
             self.base_hint.as_deref(),
             full_context,
@@ -501,7 +556,7 @@ impl GitService for LiveGit {
     fn diff_directory(&self, rel_dir: &Path, baseline: Baseline) -> String {
         git::diff_directory(
             &self.repo_root,
-            rel_dir,
+            &self.repo_path(rel_dir),
             baseline,
             self.base_hint.as_deref(),
         )

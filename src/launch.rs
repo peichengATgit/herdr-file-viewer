@@ -71,11 +71,11 @@ pub fn launch_decision(pane_list_json: &str) -> String {
 /// workspace* is **switched to** (`herdr tab focus <tab_id>`) rather than duplicated — the
 /// idempotency that makes a single keystroke reach the one viewer in this workspace.
 ///
-/// **Root-aware.** `resolve_root` maps a pane cwd to its tree root (worktree top level, else the
-/// directory itself), canonicalized so both sides compare equal. Only a viewer showing the
-/// **focused pane's root** is switched to, so a viewer opened elsewhere by the root picker
-/// (`--pick-root`) is not mistaken for this repo's viewer. When the focused pane's root cannot be
-/// resolved (no `cwd` reported, or a path that no longer exists) the decision stays root-agnostic,
+/// **Root-aware.** `resolve_root` maps a pane cwd to its tree root (the directory itself),
+/// canonicalized so both sides compare equal. Only a viewer showing the **focused pane's
+/// directory** is switched to, so a viewer opened elsewhere by the root picker (`--pick-root`) is
+/// not mistaken for this directory's viewer. When the focused pane's root cannot be resolved (no
+/// `cwd` reported, or a path that no longer exists) the decision stays root-agnostic,
 /// as it was before roots were tracked.
 ///
 /// - Unparseable JSON, or no focused pane (current tab unknown) → `OPEN`.
@@ -322,8 +322,8 @@ mod tests {
     }
 
     #[test]
-    fn tab_opens_when_the_only_other_viewer_shows_a_different_root() {
-        // The picker-opened viewer at /other must not swallow this repo's summon.
+    fn tab_opens_when_the_only_other_viewer_shows_a_different_directory() {
+        // The picker-opened viewer at /other must not swallow this directory's summon.
         let j = list(&[
             pane_cwd("wE:p1", "", true, "wE:t1", "/repo"),
             pane_cwd("wE:pA", "Files", false, "wE:t2", "/other"),

@@ -1,6 +1,7 @@
 //! Root Resolver — resolve the tree root and git-presence from a [`LaunchContext`].
 //!
-//! Root is the working tree's top-level inside a git repo (AC-1) else the cwd (AC-2).
+//! The tree root is the invoking directory (AC-1); Git queries retain the worktree top-level.
+//! Outside a git repo, the viewer is a plain browser rooted at the invoking directory (AC-2).
 //! Not-a-repo is a normal result (`is_git_repo == false`), never an error (AC-26).
 //! Uses only read-only `git` subcommands.
 
@@ -10,11 +11,11 @@ use std::path::{Path, PathBuf};
 /// The resolved root and git facts the Session Controller initializes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Resolved {
-    /// The directory the tree is rooted at.
+    /// The directory the tree is rooted at (normally the invoking pane's cwd).
     pub root: PathBuf,
     /// Whether `root` is inside a git working tree.
     pub is_git_repo: bool,
-    /// The repository top-level (where git commands run), when a repo.
+    /// The repository top-level (where Git queries run), when a repo.
     pub repo_root: Option<PathBuf>,
     /// Whether this is a *linked* worktree (vs. the main working tree).
     pub is_worktree: bool,
@@ -25,12 +26,12 @@ pub struct Resolved {
 /// Resolve the tree root and git-presence for a launch context.
 pub fn resolve(ctx: &LaunchContext) -> Resolved {
     match trusted_toplevel(&ctx.cwd) {
-        Some(root) => Resolved {
+        Some(repo_root) => Resolved {
             is_git_repo: true,
-            repo_root: Some(root.clone()),
+            repo_root: Some(repo_root),
             is_worktree: is_linked_worktree(&ctx.cwd),
             base_branch: ctx.base_branch.clone(),
-            root,
+            root: ctx.cwd.canonicalize().unwrap_or_else(|_| ctx.cwd.clone()),
         },
         // Not a git repo, git unavailable, or a toplevel that is not the opened tree:
         // a plain browser rooted at the cwd (AC-2, AC-26).
@@ -57,9 +58,9 @@ fn trusted_toplevel(cwd: &Path) -> Option<PathBuf> {
     let git_dir = git_output(cwd, &["rev-parse", "--path-format=absolute", "--git-dir"])?;
     let discovered = directory_owning_git_dir(cwd, Path::new(&git_dir))?;
     let reported_canon = reported.canonicalize().ok()?;
-    // Keep git's own toplevel string when it names that same directory, so a trusted repo
-    // resolves exactly as before.
-    (reported_canon == discovered).then_some(reported)
+    // Return the canonical repository path so the tree-root prefix and Git-relative paths use
+    // the same basis even when the invoking pane reached the repo through a symlink.
+    (reported_canon == discovered).then_some(reported_canon)
 }
 
 /// Nearest ancestor of `start`, including `start`, whose `.git` entry resolves to `git_dir`:
